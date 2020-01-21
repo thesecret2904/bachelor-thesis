@@ -1,6 +1,7 @@
 import numpy as np
 from crank_nicolson import Stepper
 import os
+from No_Interrupt import NoInterrupt
 
 __indicies_path__ = 'current_indices'
 __save_path__ = 'trainigs_data'
@@ -9,10 +10,11 @@ __targets_path__ = 'targets'
 
 # init indices for passing through laser paramters
 def init():
-    indices = np.array([0, 0, 0, 0, 0, 0])
+    indices = np.array([0, 0, 0, 0, 0])
     np.save(__indicies_path__, indices)
     os.remove(__targets_path__ + '.npy')
     exit()
+
 
 def load():
     return np.load(__indicies_path__ + '.npy')
@@ -26,13 +28,12 @@ if __name__ == '__main__':
     data = np.load('parameters.npz')
     amplitudes = data['A']
     time_widths = data['s']
-    amp_freq1 = data['a1']
+    # amp_freq1 = data['a1']
     freq1 = data['f1']
     amp_freq2 = data['a2']
     freq2 = data['f2']
 
-    max_indices = [len(amplitudes), len(time_widths), len(amp_freq1), len(freq1), len(amp_freq2), len(freq2)]
-
+    max_indices = [len(amplitudes), len(time_widths), len(freq1), len(amp_freq2), len(freq2)]
 
     w = 1.
 
@@ -75,8 +76,8 @@ if __name__ == '__main__':
             stepper.set_time(0)
             stepper.set_state(eigenstates[0], normalzie=False)
             stepper.set_electric_field(amplitudes[indices[0]], t_max / 2, time_widths[indices[1]],
-                                       [(amp_freq1[indices[2]], freq1[indices[3]]),
-                                        (amp_freq2[indices[4]], freq2[indices[5]])])
+                                       [(1, freq1[indices[2]]),
+                                        (amp_freq2[indices[3]], freq2[indices[4]])])
             stepper.step_to(t_max, dt)
             projections = stepper.projection(eigenstates)
             target = np.real(np.conj(projections) * projections)
