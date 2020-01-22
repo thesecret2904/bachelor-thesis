@@ -100,3 +100,13 @@ if __name__ == '__main__':
         except IOError:
             saved_targets = np.array(targets)
         np.save(__targets_path__, saved_targets)
+        exit()
+
+    np.save(__indicies_path__, indices)
+    saved_targets = None
+    try:
+        saved_targets = np.load(__targets_path__ + '.npy')
+        saved_targets = np.append(saved_targets, targets, axis=0)
+    except IOError:
+        saved_targets = np.array(targets)
+    np.save(__targets_path__, saved_targets)
