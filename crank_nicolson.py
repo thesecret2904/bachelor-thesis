@@ -6,37 +6,63 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 
+# Class for time propagation
 class Stepper:
     def __init__(self, initial_state: np.ndarray, start_time: float, x_domain: np.ndarray, potential: callable):
+        '''
+        initialize time propagator
+        '''
+        # set current state
         self.state = initial_state
+        # set current time
         self.t = start_time
+        # set space domain
         self.x = x_domain
+        # set a function for the potential energy
         self.V = potential
+        # initialize variable for electric field
         self.E = None
+        # initialize derivative matrix with fixed boundary conditions
         upper_diag = np.ones((len(self.x) - 1,))
         lower_diag = np.ones((len(self.x) - 1,))
         main_diag = np.full((len(self.x),), -2.)
         self.dx2 = (self.x[1] - self.x[0]) ** 2
         self.derivative = scipy.sparse.diags([lower_diag, main_diag, upper_diag], [-1, 0, 1]) / self.dx2
+        # set end time
         self.t_max = np.inf
 
     def hamiltonian(self, t):
+        '''
+        Get the hamilton operator (a matrix in discretized space) at time t
+        :param t: time at which the hamilton operator should be evaluated
+        :return: hamilton operator in matrix form
+        '''
+        # calculate potential energy at every point at time t
         V = scipy.sparse.diags(self.V(self.x, t))
+        # add electric field in dipole approximation if it is defined
         if self.E is not None:
             E = scipy.sparse.diags(self.E(self.x, t) * self.x)
             V = V - E
         return -0.5 * self.derivative + V
 
     def step(self, dt):
+        '''
+        propagate time by dt
+        :param dt: time step for time propagation
+        :return: a tuple consisting of the new time and the new state
+        '''
+        # only propagate if current time < maximum time
         if self.t < self.t_max:
+            # get identity matrix I and hamilton at half of the time step operator (mid-point rule for integration)
             I = scipy.sparse.identity(len(self.state))
             H = 0.5j * self.hamiltonian(self.t + dt / 2) * dt
+            # get the new state by solving a system of linear equations obtained by crank-nicolson
             self.state = scipy.sparse.linalg.spsolve(I + H, (I - H).dot(self.state))
             self.t += dt
         return self.t, self.state
 
     def step_to(self, target_time: float, dt: float):
-        while self.t < target_time:
+        while self.t < target_time and self.t < self.t_max:
             self.step(dt)
 
     def mean(self, operator, state=None):
