@@ -62,10 +62,23 @@ class Stepper:
         return self.t, self.state
 
     def step_to(self, target_time: float, dt: float):
+        '''
+        Propagates time until target time is reached.
+        :param target_time: target time
+        :param dt: time step
+        :return: a tuple consisting of the new time and the new state
+        '''
         while self.t < target_time and self.t < self.t_max:
             self.step(dt)
+        return self.t, self.state
 
     def mean(self, operator, state=None):
+        '''
+        Calculates the mean value of an operator of either the current state or a given state
+        :param operator: Operator in matrix form of which the mean shall be calculated
+        :param state: optional state
+        :return: mean
+        '''
         if state is None:
             return scipy.integrate.simps(np.conj(self.state) * operator.dot(self.state), self.x)
         else:
@@ -284,9 +297,9 @@ if __name__ == '__main__':
     time_width = 1
     frequencies = [(1, 5), (1, 5)]
     stepper.set_electric_field(amp, time_shift, time_width, frequencies)
-    T = np.linspace(t, t_max, 500)
-    plt.plot(T, [stepper.E(x, t)[0] for t in T])
-    plt.show()
+    # T = np.linspace(t, t_max, 500)
+    # plt.plot(T, [stepper.E(x, t)[0] for t in T])
+    # plt.show()
 
     # calculate eigensates and eigenvalues of the Hamiltonian
     energys, eigenstates = stepper.get_stationary_solutions(k=250)
@@ -295,54 +308,55 @@ if __name__ == '__main__':
     # excited_energys, excited_states = stepper.get_stationary_solutions(
     #    (electric_field_time[0] + electric_field_time[1]) / 2, k=250)
 
-    # anim = Animator(stepper, dt)
-    # anim.animate()
     stepper.set_time(0)
     stepper.set_state(eigenstates[0], normalzie=False)
-    stepper.step_to(t_max, dt)
+    anim = Animator(stepper, dt)
+    anim.animate()
+    # stepper.step_to(t_max, dt)
     projections = stepper.projection(eigenstates)
     projections = np.real(np.conj(projections) * projections)
-    bins = [i for i in range(len(projections) + 1)]
-    plt.hist(bins[:-1], bins, weights=projections)
+    N = 5
+    bins = [i for i in range(N + 1)]
+    plt.hist(bins[:-1], bins, weights=projections[:N])
     plt.show()
 
-'''n = 0
-for n in range(100, 201, 10):
-    # start with an eigenstate
-    stepper.set_state(eigenstates[n], normalzie=False)
-    # reset time to 0
-    stepper.set_time(0)
-
-    # Animator (uncomment for animation)
-    # animator = Animator(stepper, dt)
-    # animator.animate(None, frames=60)
-
-    bins = [i for i in range(len(energys) + 1)]
-
-    # energy spectrum (before electric field)
-    projections = stepper.projection(eigenstates)
-    plt.figure()
-    plt.subplot(311)
-    plt.hist(bins[:-1], bins, weights=np.real(np.conj(projections) * projections))
-    plt.title(f'Initial Energy Spectrum (n = {n})')
-
-    # Step forward till after electric field
-    # stepper.step_to(electric_field_time[1] + 1, dt)
-    # energy spectrum (after electric field)
-    projections = stepper.projection(eigenstates)
-    plt.subplot(312)
-    plt.hist(bins[:-1], bins, weights=np.real(np.conj(projections) * projections))
-    plt.title(f'Excited Energy Spectrum (Simulation, n = {n})')
-
-    # theoretical energy spectrum (after electric field)
-    probabilities = []
-    for i in range(len(excited_states)):
-        probabilities.append(scipy.integrate.simps(np.conj(excited_states[i]) * eigenstates[n], stepper.x))
-    plt.subplot(313)
-    plt.hist(bins[:-1], bins, weights=np.real(np.conj(probabilities) * probabilities))
-    plt.title(f'Excited Energy Spectrum (Theory, n = {n})')
-
-    plt.gcf().tight_layout()
-    plt.savefig(f'harmonic_oscillator_energy_spectrums/energy_spectrums{n:02d}.pdf')
-    plt.show()
-    plt.close()'''
+    '''n = 0
+    for n in range(100, 201, 10):
+        # start with an eigenstate
+        stepper.set_state(eigenstates[n], normalzie=False)
+        # reset time to 0
+        stepper.set_time(0)
+    
+        # Animator (uncomment for animation)
+        # animator = Animator(stepper, dt)
+        # animator.animate(None, frames=60)
+    
+        bins = [i for i in range(len(energys) + 1)]
+    
+        # energy spectrum (before electric field)
+        projections = stepper.projection(eigenstates)
+        plt.figure()
+        plt.subplot(311)
+        plt.hist(bins[:-1], bins, weights=np.real(np.conj(projections) * projections))
+        plt.title(f'Initial Energy Spectrum (n = {n})')
+    
+        # Step forward till after electric field
+        # stepper.step_to(electric_field_time[1] + 1, dt)
+        # energy spectrum (after electric field)
+        projections = stepper.projection(eigenstates)
+        plt.subplot(312)
+        plt.hist(bins[:-1], bins, weights=np.real(np.conj(projections) * projections))
+        plt.title(f'Excited Energy Spectrum (Simulation, n = {n})')
+    
+        # theoretical energy spectrum (after electric field)
+        probabilities = []
+        for i in range(len(excited_states)):
+            probabilities.append(scipy.integrate.simps(np.conj(excited_states[i]) * eigenstates[n], stepper.x))
+        plt.subplot(313)
+        plt.hist(bins[:-1], bins, weights=np.real(np.conj(probabilities) * probabilities))
+        plt.title(f'Excited Energy Spectrum (Theory, n = {n})')
+    
+        plt.gcf().tight_layout()
+        plt.savefig(f'harmonic_oscillator_energy_spectrums/energy_spectrums{n:02d}.pdf')
+        plt.show()
+        plt.close()'''

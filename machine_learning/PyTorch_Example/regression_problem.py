@@ -30,6 +30,7 @@ class Net(nn.Module):
 
         self.loss = loss
         self.original_parameters = self.state_dict().copy()
+        self.optimizer = None
 
     def forward(self, x):
         for i in range(len(self.layers) - 1):
@@ -40,23 +41,40 @@ class Net(nn.Module):
             x = torch.sigmoid(self.layers[-1](x))
         return x
 
-    def train_on_set(self, x, y, learning_rate=0.01, MAX_ITER=5000):
+    def train_on_set(self, x, y, learning_rate=0.01, MAX_ITER=5000, verbose=False, momentum=0):
         shuffle = [i for i in range(x.size()[0])]
-        optimizer = torch.optim.SGD(self.parameters(), learning_rate)
+        if self.optimizer is None:
+            self.optimizer = torch.optim.SGD(self.parameters(), learning_rate, momentum=momentum)
         for i in range(MAX_ITER):
             np.random.shuffle(shuffle)
             x = x[shuffle]
             y = y[shuffle]
 
-            optimizer.zero_grad()
-            loss = self.loss(net(x), y)
+            self.optimizer.zero_grad()
+            loss = self.loss(self(x), y)
             loss.backward()
-            optimizer.step()
+            if verbose:
+                print(loss.item())
+            self.optimizer.step()
+
+    def mini_batch_training(self, x, y, learning_rate=0.01, MAX_ITER=5000, verbose=False, momentum=0, batch_size=1):
+        shuffle = [i for i in range(x.size()[0])]
+        if self.optimizer is None:
+            self.optimizer = torch.optim.SGD(self.parameters(), learning_rate, momentum=momentum)
+        for j in range(MAX_ITER):
+            np.random.shuffle(shuffle)
+            x = x[shuffle]
+            y = y[shuffle]
+            for i in range(0, x.size()[0], batch_size):
+                self.optimizer.zero_grad()
+                loss = self.loss(self(x[i:min(i + batch_size, x.size()[0])]), y[i:min(i + batch_size, x.size()[0])])
+                loss.backward()
+                if verbose:
+                    print(loss.item())
+                self.optimizer.step()
 
     def reset(self):
-        parameters = self.state_dict()
-        for key in parameters:
-            parameters[key][:] = self.original_parameters[key][:]
+        self.load_state_dict(self.original_parameters.copy())
 
 
 if __name__ == '__main__':
