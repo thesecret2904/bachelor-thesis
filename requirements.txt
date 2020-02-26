@@ -1,3 +1,4 @@
+taichi
 deap
 torchvision
 sklearn

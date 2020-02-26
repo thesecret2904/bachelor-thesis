@@ -37,7 +37,7 @@ net = Net(architecture).double()
 net.regression = False
 predictions = []
 training_predictions = []
-train = True
+train = False
 save = False
 mae_loss = torch.nn.L1Loss()
 
@@ -77,15 +77,18 @@ else:
     net.load_state_dict(torch.load(__PATH__))
 
 bins = [i for i in range(N + 1)]
+print(f'mae on testing set: {mae_loss(net(training_in), training_out[:, :N]).item()}')
+print(f'mse on testing set: {net.loss(net(training_in), training_out[:, :N]).item()}')
 for i in range(10):
     plt.figure()
     plt.subplot(211)
-    plt.hist(bins[:-1], bins, weights=testing_out[i, :N])
+    plt.hist(bins[:-1], bins, weights=testing_out[i, :N], align='left')
     plt.title('Testing Data')
 
     plt.subplot(212)
-    plt.hist(bins[:-1], bins, weights=net(testing_in[i]).detach())
+    plt.hist(bins[:-1], bins, weights=net(testing_in[i]).detach(), align='left')
     plt.title('Neural Network Predictions')
 
     plt.gcf().tight_layout()
+    plt.savefig(f'harmonic_oscillator/neural_network/prediction{i+1}.pdf')
     plt.show()

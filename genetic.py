@@ -129,10 +129,10 @@ def mutate(ind, indpb=0.05):
     for i in range(len(ind)):
         if i == 0 and random.random() < indpb:
             shift = 0.1 * (2 * random.random() - 1)
-            ind[i] = max(0, min(10, ind[i] + shift))
+            ind[i] = max(0, min(50, ind[i] + shift))
         elif i == 1 and random.random() < indpb:
             shift = 0.1 * (2 * random.random() - 1)
-            ind[i] = max(0, min(2, ind[i] + shift))
+            ind[i] = max(0, min(5, ind[i] + shift))
         else:
             shift = 0.1 * (2 * random.random() - 1)
             ind[i] = max(0, min(5, ind[i] + shift))
@@ -147,9 +147,12 @@ hof = tools.HallOfFame(1)
 pop, log = algorithms.eaSimple(pop, toolbox, cxpb=0.5, mutpb=0.2, ngen=40, halloffame=hof, verbose=False)
 
 best = hof[0]
+print(best)
 bins = [i for i in range(N + 1)]
-plt.hist(bins[:-1], bins, weights=net(get_input(best)).detach())
-plt.show()
+plt.subplot(211)
+plt.hist(bins[:-1], bins, weights=net(get_input(best)).detach(), align='left')
+plt.title('Predicted Occupation by Neural Network')
+# plt.show()
 
 stepper.set_time(0)
 stepper.set_state(eigenstates[0], normalzie=False)
@@ -157,5 +160,9 @@ stepper.set_electric_field(best[0], t_max / 2, best[1], [(1, best[2]), (best[3],
 stepper.step_to(t_max, dt)
 projections = stepper.projection(eigenstates)
 occupations = np.real(np.conj(projections) * projections)[:N]
-plt.hist(bins[:-1], bins, weights=occupations)
+plt.subplot(212)
+plt.hist(bins[:-1], bins, weights=occupations, align='left')
+plt.title('Predicted Occupation by simulating with Crank-Nicolson')
+plt.gcf().tight_layout()
+plt.savefig('harmonic_oscillator/genetic/optim.pdf')
 plt.show()
