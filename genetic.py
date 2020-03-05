@@ -10,7 +10,8 @@ from deap import algorithms
 import random
 
 # path for saved parameters of neural network
-__PATH__ = 'neural_network_parameters.pt'
+# __PATH__ = 'neural_network_parameters.pt'
+__PATH__ = 'less_examplex_neural_network_parameters.pt'
 # load trainings data for calculating feature scaling (for inputs)
 inputs = np.load('shuffled_E_inputs.npy')
 # need means and vars for correctly scaling new input for neural network
@@ -60,8 +61,10 @@ t = np.linspace(0, 6, 61)
 N = 5
 # occupation state to maximize
 n_to_max = 1
-number_layers = 3
-number_nodes = 20
+# number_layers = 3
+number_layers = 5
+# number_nodes = 20
+number_nodes = 50
 architecture = (t.shape[0], *[number_nodes] * number_layers, N)
 net = Net(architecture).double()
 net.regression = False
@@ -165,4 +168,5 @@ plt.hist(bins[:-1], bins, weights=occupations, align='left')
 plt.title('Predicted Occupation by simulating with Crank-Nicolson')
 plt.gcf().tight_layout()
 plt.savefig('harmonic_oscillator/genetic/optim.pdf')
+print(occupations)
 plt.show()

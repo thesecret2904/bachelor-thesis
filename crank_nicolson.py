@@ -315,7 +315,7 @@ if __name__ == '__main__':
     stepper.step_to(t_max, dt)
     projections = stepper.projection(eigenstates)
     projections = np.real(np.conj(projections) * projections)
-    print(projections[:2])
+    print(projections[:3])
     N = 5
     bins = [i for i in range(N + 1)]
     plt.hist(bins[:-1], bins, weights=projections[:N])

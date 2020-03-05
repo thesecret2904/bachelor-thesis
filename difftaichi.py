@@ -18,16 +18,38 @@ def harmonic_pot():
 # function for electric field (checked)
 @ti.kernel
 def electric_field(t: ti.f64):
-    t_eff = t - t_h
-    a = parameters[0] / ((ti.sqrt(2 * np.pi) * parameters[1]))
-    w = ti.sqr(parameters[1])
-    e = a * ti.exp(-ti.sqr(t_eff) / (2 * w)) * (
-            ti.sin(parameters[2] * t_eff) + parameters[3] * ti.sin(parameters[4] * t_eff))
-    for i in e_field:
+    for i in range(N):
+        t_eff = t - t_h
+        a = parameters[0] / (ti.sqrt(2 * np.pi) * parameters[1])
+        w = ti.sqr(parameters[1])
+        e = a * ti.exp(-ti.sqr(t_eff) / (2 * w)) * (
+                ti.sin(parameters[2] * t_eff) + parameters[3] * ti.sin(parameters[4] * t_eff))
         e_field[i] = e
 
 
-# init matrix for crank-nicolson I +- i/2*H*dt 
+# init matrix for crank-nicolson I +- i/2*H*dt
+@ti.kernel
+def init_main_diags():
+    for i in range(N):
+        right_main_diag[i][0] = 1
+        right_main_diag[i][1] = 0
+        left_main_diag[i][0] = 1
+        left_main_diag[i][1] = 0
+
+
+@ti.kernel
+def init_side_diags(temp: ti.f64):
+    for i in range(N - 1):
+        left_upper_diag[i][1] = -temp
+        left_upper_diag[i][0] = 0
+        left_lower_diag[i][1] = -temp
+        left_lower_diag[i][0] = 0
+        right_upper_diag[i][1] = temp
+        right_upper_diag[i][0] = 0
+        right_lower_diag[i][1] = temp
+        right_lower_diag[i][0] = 0
+
+
 @ti.kernel
 def init_hamiltonian(temp: ti.f64):
     for i in right_main_diag:
@@ -49,7 +71,7 @@ def init_hamiltonian(temp: ti.f64):
 # complete hamilton operator 
 @ti.kernel
 def hamiltonian():
-    for i in left_main_diag:
+    for i in range(N):
         left_main_diag[i][1] = (1 / h2 + pot[i] - e_field[i] * space[i]) * dt / 2
         right_main_diag[i][1] = -left_main_diag[i][1]
 
@@ -80,8 +102,30 @@ def complex_conj(z):
 
 # calculating the right side of the system of equations (I-i/2*H*dt) * current (checked)
 @ti.kernel
+def right_hand_side_init():
+    right_side[0] = complex_mult(right_main_diag[0], current[0]) + complex_mult(right_upper_diag[0], current[1])
+
+
+@ti.kernel
+def right_hand_side_main():
+    for i in range(1, N - 1):
+        right_side[i] = complex_mult(right_main_diag[i], current[i]) + complex_mult(right_upper_diag[i],
+                                                                                    current[i + 1]) + complex_mult(
+            right_lower_diag[i - 1], current[i - 1])
+
+
+@ti.kernel
+def right_hand_side_end():
+    right_side[N - 1] = complex_mult(right_main_diag[N - 1], current[N - 1]) + complex_mult(right_lower_diag[N - 2],
+                                                                                            current[N - 2])
+
+
+# @ti.kernel
 def right_hand_side():
-    for i in current:
+    right_hand_side_init()
+    right_hand_side_main()
+    right_hand_side_end()
+    '''for i in current:
         if i == 0:
             right_side[i] = complex_mult(right_main_diag[i], current[i]) + complex_mult(right_upper_diag[i],
                                                                                         current[i + 1])
@@ -91,7 +135,7 @@ def right_hand_side():
         else:
             right_side[i] = complex_mult(right_main_diag[i], current[i]) + complex_mult(right_upper_diag[i],
                                                                                         current[i + 1]) + complex_mult(
-                right_lower_diag[i - 1], current[i - 1])
+                right_lower_diag[i - 1], current[i - 1])'''
 
 
 # thomas algorithm for solving linear system of equations (checked)
@@ -101,9 +145,38 @@ def thomas():
 
 
 @ti.kernel
-def thomas1():
+def thomas1_init():
+    left_upper_diag[0] = complex_diff(left_upper_diag[0], left_main_diag[0])
+    right_side[0] = complex_diff(right_side[0], left_main_diag[0])
+
+
+@ti.kernel
+def thomas1_main():
     # prevent parallelization
-    if True:
+    for _ in range(1):
+        for i in range(1, N - 1):
+            left_upper_diag[i] = complex_diff(left_upper_diag[i],
+                                              left_main_diag[i] - complex_mult(left_upper_diag[i - 1],
+                                                                               left_lower_diag[i - 1]))
+            right_side[i] = complex_diff(right_side[i] - complex_mult(right_side[i - 1], left_lower_diag[i - 1]),
+                                         left_main_diag[i] - complex_mult(left_upper_diag[i - 1],
+                                                                          left_lower_diag[i - 1]))
+
+
+@ti.kernel
+def thomas1_end():
+    right_side[N - 1] = complex_diff(right_side[N - 1] - complex_mult(right_side[N - 2], left_lower_diag[N - 2]),
+                                     left_main_diag[N - 1] - complex_mult(left_upper_diag[N - 2],
+                                                                          left_lower_diag[N - 2]))
+
+
+# @ti.kernel
+def thomas1():
+    thomas1_init()
+    thomas1_main()
+    thomas1_end()
+    # prevent parallelization
+    '''for _ in range(1):
         for i in range(N):
             if i == 0:
                 left_upper_diag[i] = complex_diff(left_upper_diag[i], left_main_diag[i])
@@ -115,22 +188,40 @@ def thomas1():
                                                                                        left_lower_diag[i - 1]))
                 right_side[i] = complex_diff(right_side[i] - complex_mult(right_side[i - 1], left_lower_diag[i - 1]),
                                              left_main_diag[i] - complex_mult(left_upper_diag[i - 1],
-                                                                              left_lower_diag[i - 1]))
+                                                                              left_lower_diag[i - 1]))'''
 
 
 @ti.kernel
+def thomas2_init():
+    current[N - 1] = right_side[N - 1]
+
+
+@ti.kernel
+def thomas2_main():
+    # prevent parallelization
+    for _ in range(1):
+        for i in range(1, N):
+            j = N - i - 1
+            current[j] = right_side[j] - complex_mult(left_upper_diag[j], current[j + 1])
+
+
+# @ti.kernel
 def thomas2():
-    if True:
+    thomas2_init()
+    thomas2_main()
+    '''if True:
         for i in range(N):
             j = N - i - 1
             if j == N - 1:
                 current[j] = right_side[j]
             else:
-                current[j] = right_side[j] - complex_mult(left_upper_diag[j], current[j + 1])
+                current[j] = right_side[j] - complex_mult(left_upper_diag[j], current[j + 1])'''
 
 
 def step():
-    init_hamiltonian(dt / (4 * h2))
+    # init_hamiltonian()
+    init_main_diags()
+    init_side_diags(dt / (4 * h2))
     electric_field(t + dt / 2)
     hamiltonian()
     right_hand_side()
@@ -188,14 +279,35 @@ def init():
 
 
 @ti.kernel
+def get_occupation_init():
+    projection[None] = (goal[0] * current[0] + goal[N - 1] * current[N - 1]) / 2
+
+
+@ti.kernel
+def get_occupation_main():
+    for i in range(1, N - 1):
+        projection[None] += goal[i] * current[i]
+
+
+@ti.kernel
+def get_occupation_end():
+    projection[None] *= h
+    occupation[None] = projection.norm_sqr()
+    print(occupation[None])
+
+
+# @ti.kernel
 def get_occupation():
-    projection = (goal[0] * current[0] + goal[N - 1] * current[N - 1]) / 2
+    get_occupation_init()
+    get_occupation_main()
+    get_occupation_end()
+    '''projection = (goal[0] * current[0] + goal[N - 1] * current[N - 1]) / 2
     for i in range(1, N - 1):
         projection += goal[i] * current[i]
         if i == N - 2:
             projection *= h
             occupation[None] = projection.norm_sqr()
-            print(occupation[None])
+            print(occupation[None])'''
 
 
 w = 1.
@@ -232,6 +344,7 @@ parameters = ti.var(dt=ti.f64, shape=5, needs_grad=True)
 initial = ti.var(dt=ti.f64, shape=N)
 goal = ti.var(dt=ti.f64, shape=N)
 occupation = ti.var(dt=ti.f64, shape=(), needs_grad=True)
+projection = ti.Vector(2, dt=ti.f64, shape=())
 
 left_main_diag = ti.Vector(2, dt=ti.f64, shape=N)
 left_upper_diag = ti.Vector(2, dt=ti.f64, shape=N - 1)
@@ -256,13 +369,16 @@ harmonic_pot()
 
 init()
 t = 0
-'''while t < t_max:
-    step()
-    t += dt
-get_occupation()'''
+# while t < t_max:
+#     step()
+#    t += dt
+# get_occupation()
 
 with ti.Tape(occupation):
-    step()
+    while t < t_max:
+        step()
+        t += dt
+    get_occupation()
 
 '''fig = plt.figure()
 ax = plt.axes()
@@ -284,8 +400,8 @@ def animate(i):
 anim = animation.FuncAnimation(fig, animate, blit=True, interval=100)
 plt.show()'''
 
-# Checking matrices
-'''stepper.set_state(eigenstates[0], normalzie=False)
+''''# Checking matrices
+stepper.set_state(eigenstates[0], normalzie=False)
 for i in range(5):
     print(f'step: {i}')
     control_step()'''

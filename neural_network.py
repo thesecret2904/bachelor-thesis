@@ -5,7 +5,8 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 import datetime
 
-__PATH__ = 'neural_network_parameters.pt'
+# __PATH__ = 'neural_network_parameters.pt'
+__PATH__ = 'less_examplex_neural_network_parameters.pt'
 inputs = np.load('shuffled_E_inputs.npy')
 targets = np.load('shuffled_targets.npy')
 
@@ -30,50 +31,49 @@ cross_out = targets[3 * len(inputs) // 4 + 1::2]
 N = 5
 learning_rate = 0.01
 momentum = 0.8
-number_layers = 3
-number_nodes = 20
+# number_layers = 3
+number_layers = 5
+# number_nodes = 20
+number_nodes = 50
 architecture = (inputs.shape[1], *[number_nodes] * number_layers, N)
 net = Net(architecture).double()
 net.regression = False
 predictions = []
 training_predictions = []
-train = False
-save = False
+train = True
+save = True
+load = False
 mae_loss = torch.nn.L1Loss()
 
 if train:
-    number_of_examples = range(5000, 80000, 10000)
     train_loss = []
     cv_loss = []
-    writer = SummaryWriter(f'runs/harmonic_oscillator/states/{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}')
-    for N in range(1, 11):
-        architecture = (inputs.shape[1], *[number_nodes] * number_layers, N)
-        net = Net(architecture).double()
-        # net.reset()
-        # writer = SummaryWriter(f'runs/harmonic_oscillator/{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}')
-        try:
-            for i in range(25):
-                net.mini_batch_training(training_in, training_out[:, :N], MAX_ITER=1, verbose=False,
-                                        learning_rate=learning_rate, momentum=momentum, batch_size=5)
-                print(i)
+    writer = SummaryWriter(
+        f'runs/harmonic_oscillator/architectur_test_5_20/{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}')
+    # net.reset()
+    # writer = SummaryWriter(f'runs/harmonic_oscillator/{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}')
+    try:
+        for i in range(400):
+            net.mini_batch_training(training_in[::2], training_out[::2, :N], MAX_ITER=1, verbose=False,
+                                    learning_rate=learning_rate, momentum=momentum, batch_size=5)
+            print(i)
             # train_loss.append(net.loss(net(training_in), training_out[:, :N]).item())
-            writer.add_scalar('training loss (mse)', net.loss(net(training_in), training_out[:, :N]).item(), N)
-            writer.add_scalar('training loss (mae)', mae_loss(net(training_in), training_out[:, :N]).item(), N)
+            writer.add_scalar('training loss (mse)', net.loss(net(training_in), training_out[:, :N]).item(), i)
+            writer.add_scalar('training loss (mae)', mae_loss(net(training_in), training_out[:, :N]).item(), i)
             # cv_loss.append(net.loss(net(cross_in), cross_out[:, :N]).item())
-            writer.add_scalar('cross validation loss (mse)', net.loss(net(cross_in), cross_out[:, :N]).item(), N)
-            writer.add_scalar('cross validation loss (mae)', mae_loss(net(cross_in), cross_out[:, :N]).item(), N)
-            print('N = ', N)
-        except KeyboardInterrupt:
-            pass
+            writer.add_scalar('cross validation loss (mse)', net.loss(net(cross_in), cross_out[:, :N]).item(), i)
+            writer.add_scalar('cross validation loss (mae)', mae_loss(net(cross_in), cross_out[:, :N]).item(), i)
+    except KeyboardInterrupt:
+        pass
 
-    if save:
-        torch.save(net.state_dict(), __PATH__)
+if save:
+    torch.save(net.state_dict(), __PATH__)
 
-    # plt.plot(train_loss, label='Trainings Set')
-    # plt.plot(cv_loss, label='Cross Validation Set')
-    # plt.legend()
-    # plt.show()
-else:
+# plt.plot(train_loss, label='Trainings Set')
+# plt.plot(cv_loss, label='Cross Validation Set')
+# plt.legend()
+# plt.show()
+if load:
     net.load_state_dict(torch.load(__PATH__))
 
 bins = [i for i in range(N + 1)]
@@ -90,5 +90,5 @@ for i in range(10):
     plt.title('Neural Network Predictions')
 
     plt.gcf().tight_layout()
-    plt.savefig(f'harmonic_oscillator/neural_network/prediction{i+1}.pdf')
+    plt.savefig(f'harmonic_oscillator/neural_network/prediction{i + 1}.pdf')
     plt.show()
