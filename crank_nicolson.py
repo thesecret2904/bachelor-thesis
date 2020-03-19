@@ -295,8 +295,9 @@ if __name__ == '__main__':
     amp = 10
     time_shift = t_max / 2
     time_width = 1
-    frequencies = [(1, 5), (1, 5)]
-    stepper.set_electric_field(amp, time_shift, time_width, frequencies)
+    parameters = [4.858508484305595, 0.7622057432390686, 2.026144512459367, 1.008878584223196, 4.779891252129817]
+    frequencies = [(1, parameters[2]), (parameters[3], parameters[4])]
+    stepper.set_electric_field(parameters[0], time_shift, parameters[1], frequencies)
     # T = np.linspace(t, t_max, 500)
     # plt.plot(T, [stepper.E(x, t)[0] for t in T])
     # plt.show()

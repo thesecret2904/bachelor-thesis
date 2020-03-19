@@ -277,6 +277,8 @@ def step():
 def init():
     for i in current:
         current[i][0] = initial[i]
+        current[i][1] = 0
+    occupation[None] = 0
 
 
 @ti.kernel
@@ -311,6 +313,12 @@ def get_occupation():
             print(occupation[None])'''
 
 
+@ti.kernel
+def optimze():
+    for i in range(5):
+        parameters[i] += parameters.grad[i] * learning_rate
+
+
 w = 1.
 
 
@@ -340,7 +348,8 @@ pot = ti.var(dt=ti.f64, shape=N)
 
 e_field = ti.var(dt=ti.f64, shape=N, needs_grad=True)
 # p = np.array([4.814029335249125, 0.841850321595887, 2.0975267122577352, 1.0035008897668007, 4.794475884008799])
-p = np.array([10, 1, 5, 1, 5])
+p = np.asarray([5.120897103827091, 0.45307230437739066, 2.005192724801804, 1.2527029251083832, 4.535321375318067])
+# p = np.array([10, 1, 5, 1, 5])
 parameters = ti.var(dt=ti.f64, shape=5, needs_grad=True)
 
 initial = ti.var(dt=ti.f64, shape=N)
@@ -368,21 +377,34 @@ initial.from_numpy(np.real(eigenstates[0]))
 goal.from_numpy(np.real(eigenstates[1]))
 
 harmonic_pot()
-
-init()
-t = 0
+# init()
 # while t < t_max:
 #     step()
-#    t += dt
+#     t += dt
 # get_occupation()
 
-with ti.Tape(occupation):
-    while t < t_max:
-        step()
-        t += dt
-    get_occupation()
-print(parameters.grad[0], parameters.grad[1], parameters.grad[2], parameters.grad[3], parameters.grad[4])
 
+# optimizing
+learning_rate = 1e-5
+occupations = []
+for i in range(4000):
+    init()
+    t = 0
+    with ti.Tape(occupation):
+        while t < t_max:
+            step()
+            t += dt
+        get_occupation()
+    occupations.append(occupation[None])
+    print(parameters[0], ',', parameters[1], ',', parameters[2], ',', parameters[3], ',', parameters[4])
+    print(parameters.grad[0], parameters.grad[1], parameters.grad[2], parameters.grad[3], parameters.grad[4])
+    print(i)
+    optimze()
+plt.plot(occupations)
+plt.xlabel('Iterations')
+plt.ylabel('Occupation')
+plt.savefig('difftaichi3.pdf')
+plt.show()
 '''fig = plt.figure()
 ax = plt.axes()
 plt.ylim((-1, 1))
