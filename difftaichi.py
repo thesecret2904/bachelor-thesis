@@ -18,13 +18,17 @@ def harmonic_pot():
 # function for electric field (checked)
 @ti.kernel
 def electric_field(t: ti.f64):
-    for i in range(N):
-        t_eff = t - t_h
-        a = parameters[0] / (ti.sqrt(2 * np.pi) * parameters[1])
-        w = ti.sqr(parameters[1])
-        e = a * ti.exp(-ti.sqr(t_eff) / (2 * w)) * (
-                ti.sin(parameters[2] * t_eff) + parameters[3] * ti.sin(parameters[4] * t_eff))
-        e_field[i] = e
+    t_eff = t - t_h
+    a = parameters[0] / (ti.sqrt(2 * np.pi) * parameters[1])
+    w = ti.sqr(parameters[1])
+    e = a * ti.exp(-ti.sqr(t_eff) / (2 * w)) * (
+            ti.sin(parameters[2] * t_eff) + parameters[3] * ti.sin(parameters[4] * t_eff))
+    e_field[None] = e
+    grad[0] = e / parameters[0]
+    grad[1] = - e / parameters[1] + e * ti.sqr(t_eff) / (parameters[1] ** 3)
+    grad[2] = a * ti.exp(-ti.sqr(t_eff) / (2 * w)) * ti.cos(parameters[2] * t_eff) * t_eff
+    grad[3] = a * ti.exp(-ti.sqr(t_eff) / (2 * w)) * ti.sin(parameters[4] * t_eff)
+    grad[4] = a * ti.exp(-ti.sqr(t_eff) / (2 * w)) * parameters[3] * ti.cos(parameters[4] * t_eff) * t_eff
 
 
 # init matrix for crank-nicolson I +- i/2*H*dt
@@ -73,14 +77,14 @@ def init_hamiltonian(temp: ti.f64):
 def hamiltonian():
     for i in range(N):
         # both are set to 0 in a previous step
-        left_main_diag[i][1] += (1 / h2 + pot[i] - e_field[i] * space[i]) * dt / 2
+        left_main_diag[i][1] += (1 / h2 + pot[i] - e_field[None] * space[i]) * dt / 2
         right_main_diag[i][1] += -left_main_diag[i][1]
 
 
 # complex multiplication and division (checked)
 @ti.func
 def complex_mult(z1, z2):
-    result = ti.Vector([0., 0.], dt=ti.f64)
+    result = ti.Vector([0., 0.], dt=ti.f64, needs_grad=True)
     result[0] = z1[0] * z2[0] - z1[1] * z2[1]
     result[1] = z1[0] * z2[1] + z1[1] * z2[0]
     return result
@@ -88,10 +92,9 @@ def complex_mult(z1, z2):
 
 @ti.func
 def complex_diff(z1, z2):
-    result = ti.Vector([0., 0.], dt=ti.f64)
-    l = ti.sqr(z2[0]) + ti.sqr(z2[1])
-    result[0] = (z1[0] * z2[0] + z1[1] * z2[1]) / l
-    result[1] = (z1[1] * z2[0] - z1[0] * z2[1]) / l
+    result = ti.Vector([0., 0.], dt=ti.f64, needs_grad=True)
+    result[0] = (z1[0] * z2[0] + z1[1] * z2[1]) / (ti.sqr(z2[0]) + ti.sqr(z2[1]))
+    result[1] = (z1[1] * z2[0] - z1[0] * z2[1]) / (ti.sqr(z2[0]) + ti.sqr(z2[1]))
     return result
 
 
@@ -104,21 +107,23 @@ def complex_conj(z):
 # calculating the right side of the system of equations (I-i/2*H*dt) * current (checked)
 @ti.kernel
 def right_hand_side_init():
-    right_side[0] += complex_mult(right_main_diag[0], current[0]) + complex_mult(right_upper_diag[0], current[1]) - right_side[0]
+    right_side[0] += complex_mult(right_main_diag[0], current[0]) + complex_mult(right_upper_diag[0], current[1]) - \
+                     right_side[0]
 
 
 @ti.kernel
 def right_hand_side_main():
     for i in range(1, N - 1):
         right_side[i] += complex_mult(right_main_diag[i], current[i]) + complex_mult(right_upper_diag[i],
-                                                                                    current[i + 1]) + complex_mult(
+                                                                                     current[i + 1]) + complex_mult(
             right_lower_diag[i - 1], current[i - 1]) - right_side[i]
 
 
 @ti.kernel
 def right_hand_side_end():
     right_side[N - 1] += complex_mult(right_main_diag[N - 1], current[N - 1]) + complex_mult(right_lower_diag[N - 2],
-                                                                                            current[N - 2]) - right_side[N - 1]
+                                                                                             current[N - 2]) - \
+                         right_side[N - 1]
 
 
 # @ti.kernel
@@ -157,18 +162,19 @@ def thomas1_main():
     for _ in range(1):
         for i in range(1, N - 1):
             left_upper_diag[i] += complex_diff(left_upper_diag[i],
-                                              left_main_diag[i] - complex_mult(left_upper_diag[i - 1],
-                                                                               left_lower_diag[i - 1])) - left_upper_diag[i]
+                                               left_main_diag[i] - complex_mult(left_upper_diag[i - 1],
+                                                                                left_lower_diag[i - 1])) - \
+                                  left_upper_diag[i]
             right_side[i] += complex_diff(right_side[i] - complex_mult(right_side[i - 1], left_lower_diag[i - 1]),
-                                         left_main_diag[i] - complex_mult(left_upper_diag[i - 1],
-                                                                          left_lower_diag[i - 1])) - right_side[i]
+                                          left_main_diag[i] - complex_mult(left_upper_diag[i - 1],
+                                                                           left_lower_diag[i - 1])) - right_side[i]
 
 
 @ti.kernel
 def thomas1_end():
     right_side[N - 1] += complex_diff(right_side[N - 1] - complex_mult(right_side[N - 2], left_lower_diag[N - 2]),
-                                     left_main_diag[N - 1] - complex_mult(left_upper_diag[N - 2],
-                                                                          left_lower_diag[N - 2])) - right_side[N - 1]
+                                      left_main_diag[N - 1] - complex_mult(left_upper_diag[N - 2],
+                                                                           left_lower_diag[N - 2])) - right_side[N - 1]
 
 
 # @ti.kernel
@@ -274,6 +280,23 @@ def step():
 
 
 @ti.kernel
+def get_grad(i: ti.i32):
+    for k in range(5):
+        grad[k] = grad[k] * (-space[i] * dt / 2)
+
+
+@ti.kernel
+def set_var(i: ti.i32):
+    test_var[None] = (1 / h2 + pot[i] - e_field[None] * space[i]) * dt / 2
+
+
+def test_grad(i):
+    electric_field(0)
+    set_var(i)
+    get_grad(i)
+
+
+@ti.kernel
 def init():
     for i in current:
         current[i][0] = initial[i]
@@ -346,11 +369,14 @@ dt = 0.1
 space = ti.var(dt=ti.f64, shape=N)
 pot = ti.var(dt=ti.f64, shape=N)
 
-e_field = ti.var(dt=ti.f64, shape=N, needs_grad=True)
+e_field = ti.var(dt=ti.f64, shape=(), needs_grad=True)
 # p = np.array([4.814029335249125, 0.841850321595887, 2.0975267122577352, 1.0035008897668007, 4.794475884008799])
 p = np.asarray([5.120897103827091, 0.45307230437739066, 2.005192724801804, 1.2527029251083832, 4.535321375318067])
-# p = np.array([10, 1, 5, 1, 5])
+# p = np.array([10, .5, 5, 3, 7])
 parameters = ti.var(dt=ti.f64, shape=5, needs_grad=True)
+
+test_var = ti.var(dt=ti.f64, shape=(), needs_grad=True)
+grad = ti.var(dt=ti.f64, shape=5)
 
 initial = ti.var(dt=ti.f64, shape=N)
 goal = ti.var(dt=ti.f64, shape=N, needs_grad=True)
@@ -383,11 +409,18 @@ harmonic_pot()
 #     t += dt
 # get_occupation()
 
+# testing grad
+with ti.Tape(test_var):
+    test_grad(999)
+print(parameters.grad[0], parameters.grad[1], parameters.grad[2], parameters.grad[3], parameters.grad[4])
+print(grad[0], grad[1], grad[2], grad[3], grad[4])
+exit()
 
 # optimizing
 learning_rate = 1e-5
 occupations = []
-for i in range(4000):
+grad = []
+for i in range(1000):
     init()
     t = 0
     with ti.Tape(occupation):
@@ -396,6 +429,7 @@ for i in range(4000):
             t += dt
         get_occupation()
     occupations.append(occupation[None])
+    grad.append(parameters.grad[0])
     print(parameters[0], ',', parameters[1], ',', parameters[2], ',', parameters[3], ',', parameters[4])
     print(parameters.grad[0], parameters.grad[1], parameters.grad[2], parameters.grad[3], parameters.grad[4])
     print(i)
@@ -403,7 +437,9 @@ for i in range(4000):
 plt.plot(occupations)
 plt.xlabel('Iterations')
 plt.ylabel('Occupation')
-plt.savefig('difftaichi3.pdf')
+# plt.savefig('difftaichi3.pdf')
+plt.show()
+plt.plot(grad)
 plt.show()
 '''fig = plt.figure()
 ax = plt.axes()
