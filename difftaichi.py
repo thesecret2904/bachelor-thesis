@@ -282,18 +282,27 @@ def step():
 @ti.kernel
 def get_grad(i: ti.i32):
     for k in range(5):
+        # derivative of left_main_diag[i][1]
         grad[k] = grad[k] * (-space[i] * dt / 2)
+        # derivative of left_upper_diag[0][0] after thomas1_init()
+        grad[k] = grad[k] * (-(dt / (4 * h2)) - 2 * left_upper_diag[i][0] * left_main_diag[i][1]) / (
+                    ti.sqr(left_main_diag[i][0]) + ti.sqr(left_main_diag[i][1]))
 
 
 @ti.kernel
 def set_var(i: ti.i32):
-    test_var[None] = (1 / h2 + pot[i] - e_field[None] * space[i]) * dt / 2
+    # test_var[None] = (1 / h2 + pot[i] - e_field[None] * space[i]) * dt / 2
+    test_var[None] = left_upper_diag[i][0]
 
 
 def test_grad(i):
-    electric_field(0)
+    init_main_diags()
+    init_side_diags(dt / (4 * h2))
+    electric_field(t + dt / 2)
+    hamiltonian()
+    right_hand_side()
+    thomas1_init()
     set_var(i)
-    get_grad(i)
 
 
 @ti.kernel
@@ -301,7 +310,7 @@ def init():
     for i in current:
         current[i][0] = initial[i]
         current[i][1] = 0
-    occupation[None] = 0
+    # occupation[None] = 0
 
 
 @ti.kernel
@@ -318,7 +327,7 @@ def get_occupation_main():
 @ti.kernel
 def get_occupation_end():
     projection[None] *= h
-    occupation[None] += projection.norm_sqr()
+    occupation[None] = projection.norm_sqr()
     print(occupation[None])
 
 
@@ -411,9 +420,11 @@ harmonic_pot()
 
 # testing grad
 with ti.Tape(test_var):
-    test_grad(999)
+    test_grad(0)
+get_grad(0)
 print(parameters.grad[0], parameters.grad[1], parameters.grad[2], parameters.grad[3], parameters.grad[4])
 print(grad[0], grad[1], grad[2], grad[3], grad[4])
+t += dt
 exit()
 
 # optimizing
