@@ -152,7 +152,8 @@ def thomas():
 
 @ti.kernel
 def thomas1_init():
-    left_upper_diag[0] += complex_diff(left_upper_diag[0], left_main_diag[0]) - left_upper_diag[0]
+    # left_upper_diag[0] += complex_diff(left_upper_diag[0], left_main_diag[0]) - left_upper_diag[0]
+    left_upper_diag[0] += left_upper_diag[0] * left_main_diag[0] - left_upper_diag[0]
     right_side[0] += complex_diff(right_side[0], left_main_diag[0]) - right_side[0]
 
 
@@ -285,14 +286,15 @@ def get_grad(i: ti.i32):
         # derivative of left_main_diag[i][1]
         grad[k] = grad[k] * (-space[i] * dt / 2)
         # derivative of left_upper_diag[0][0] after thomas1_init()
-        grad[k] = grad[k] * (-(dt / (4 * h2)) - 2 * left_upper_diag[i][0] * left_main_diag[i][1]) / (
-                    ti.sqr(left_main_diag[i][0]) + ti.sqr(left_main_diag[i][1]))
+        # grad[k] = grad[k] * (-(dt / (4 * h2)) - 2 * left_upper_diag[i][0] * left_main_diag[i][1]) / (
+        #             ti.sqr(left_main_diag[i][0]) + ti.sqr(left_main_diag[i][1]))
+        grad[k] = grad[k] * left_upper_diag[i][1]
 
 
 @ti.kernel
 def set_var(i: ti.i32):
     # test_var[None] = (1 / h2 + pot[i] - e_field[None] * space[i]) * dt / 2
-    test_var[None] = left_upper_diag[i][0]
+    test_var[None] = left_upper_diag[i][1]
 
 
 def test_grad(i):

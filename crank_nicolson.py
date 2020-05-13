@@ -295,7 +295,8 @@ if __name__ == '__main__':
     amp = 10
     time_shift = t_max / 2
     time_width = 1
-    parameters = [4.858508484305595, 0.7622057432390686, 2.026144512459367, 1.008878584223196, 4.779891252129817]
+    # parameters = [4.858508484305595, 0.7622057432390686, 2.026144512459367, 1.008878584223196, 4.779891252129817]
+    parameters = [2.21, 1.50, 1.60, 3.14, 2.15]
     frequencies = [(1, parameters[2]), (parameters[3], parameters[4])]
     stepper.set_electric_field(parameters[0], time_shift, parameters[1], frequencies)
     # T = np.linspace(t, t_max, 500)
@@ -321,6 +322,7 @@ if __name__ == '__main__':
     bins = [i for i in range(N + 1)]
     plt.hist(bins[:-1], bins, weights=projections[:N])
     plt.show()
+    print(stepper.state)
 
     '''n = 0
     for n in range(100, 201, 10):
