@@ -4,6 +4,7 @@ import scipy.sparse.linalg
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+import tikzplotlib
 
 
 # Class for time propagation
@@ -44,6 +45,21 @@ class Stepper:
             E = scipy.sparse.diags(self.E(self.x, t) * self.x)
             V = V - E
         return -0.5 * self.derivative + V
+
+    def perturbation_probability(self, eigenstates, eigenenergys, n, k, dt):
+        if n == k:
+            c = 1.
+        else:
+            c = 0
+        i = 0
+        times = np.arange(0, self.t_max, dt)
+        integrand = np.zeros_like(times, dtype='complex128')
+        for t in times:
+            V = -scipy.sparse.diags(self.E(self.x, t) * self.x)
+            integrand[i] = scipy.integrate.simps(np.conj(eigenstates[n]) * V.dot(eigenstates[k]), self.x) * np.exp(
+                -1j * (eigenenergys[k] - eigenenergys[n]) * t)
+            i += 1
+        return c - 1j * scipy.integrate.simps(integrand, times)
 
     def step(self, dt):
         '''
@@ -146,6 +162,15 @@ class Stepper:
 
         def E(x: np.ndarray, t: float):
             return np.full_like(x, amplitude * np.exp(-(t - time_shift) ** 2 / (2 * time_width)) * sum(
+                [a * np.sin(f * (t - time_shift)) for a, f in frequencies]))
+
+        self.add_electric_field(E)
+
+    def set_electric_field2(self, amplitude: float, frequencies: list, order: int = 2):
+        time_shift = self.t_max / 2
+
+        def E(x: np.ndarray, t: float):
+            return np.full_like(x, amplitude * np.sin(order * np.pi * t / self.t_max) ** 2 * sum(
                 [a * np.sin(f * (t - time_shift)) for a, f in frequencies]))
 
         self.add_electric_field(E)
@@ -312,17 +337,42 @@ if __name__ == '__main__':
 
     stepper.set_time(0)
     stepper.set_state(eigenstates[0], normalzie=False)
+
+    projections = stepper.projection(eigenstates)
+    projections = np.real(np.conj(projections) * projections)
+    # print(projections[:3])
+    N = 5
+    bins = [i for i in range(N + 1)]
+    plt.hist(bins[:-1], bins, weights=projections[:N], align='left')
+    plt.xlabel('State')
+    plt.ylabel('Occupation')
+    plt.savefig('harmonic_oscillator/init.pdf')
+    tikzplotlib.save('harmonic_oscillator/init.tex')
+    plt.show()
+
     # anim = Animator(stepper, dt)
     # anim.animate()
     stepper.step_to(t_max, dt)
     projections = stepper.projection(eigenstates)
     projections = np.real(np.conj(projections) * projections)
-    print(projections[:3])
+    # print(projections[:3])
     N = 5
     bins = [i for i in range(N + 1)]
-    plt.hist(bins[:-1], bins, weights=projections[:N])
+    plt.hist(bins[:-1], bins, weights=projections[:N], align='left')
+    plt.xlabel('State')
+    plt.ylabel('Occupation')
+    plt.savefig('harmonic_oscillator/final.pdf')
+    tikzplotlib.save('harmonic_oscillator/final.tex')
     plt.show()
-    print(stepper.state)
+    # print(stepper.state)
+    # perubations = np.zeros(N)
+    # for i in range(N):
+    #     perubations[i] = np.abs(stepper.perturbation_probability(eigenstates, energys, i, 0, dt)) ** 2
+    # perubations /= sum(perubations)
+    # print(perubations)
+    # plt.figure()
+    # plt.hist(bins[:-1], bins, weights=perubations)
+    # plt.show()
 
     '''n = 0
     for n in range(100, 201, 10):

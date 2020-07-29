@@ -133,11 +133,18 @@ dmypy.json
 
 # created gifs and pdfs
 gifs/
-harmonic_oscillator_energy_spectrums/
-
-# NumPy Files
-
+harmonic_oscillator/
 
 # NumPy Files
 *.npy
 *.npz
+
+# PyTorch Files
+*.pt
+*.p
+
+# Note File
+notes.txt
+
+# Tensorboard
+runs/

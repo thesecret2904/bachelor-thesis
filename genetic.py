@@ -8,10 +8,11 @@ from deap import creator
 from deap import tools
 from deap import algorithms
 import random
+from stability_testing import stability
 
 # path for saved parameters of neural network
-# __PATH__ = 'neural_network_parameters.pt'
-__PATH__ = 'less_examplex_neural_network_parameters.pt'
+__PATH__ = 'neural_network_parameters.pt'
+# __PATH__ = 'less_examplex_neural_network_parameters.pt'
 # load trainings data for calculating feature scaling (for inputs)
 inputs = np.load('shuffled_E_inputs.npy')
 # need means and vars for correctly scaling new input for neural network
@@ -61,10 +62,10 @@ t = np.linspace(0, 6, 61)
 N = 5
 # occupation state to maximize
 n_to_max = 1
-# number_layers = 3
-number_layers = 5
-# number_nodes = 20
-number_nodes = 50
+number_layers = 3
+# number_layers = 5
+number_nodes = 20
+# number_nodes = 50
 architecture = (t.shape[0], *[number_nodes] * number_layers, N)
 net = Net(architecture).double()
 net.regression = False
@@ -84,7 +85,7 @@ def attributes():
     # main amplitude range = 0 to 10
     ind.append(10 * random.random())
     # time width range = 0 to 2
-    ind.append(2 * random.random())
+    # ind.append(2 * random.random())
     # frequency range = 0 to 5
     ind.append(5 * random.random())
     # sub amplitude range = 0 to 5
@@ -106,7 +107,8 @@ def get_input(args):
     # init electric field
     e_field = np.zeros_like(t)
     # set electric field according to current arguments
-    stepper.set_electric_field(args[0], t[-1] / 2, args[1], [(1, args[2]), (args[3], args[4])])
+    # stepper.set_electric_field(args[0], t[-1] / 2, args[1], [(1, args[2]), (args[3], args[4])])
+    stepper.set_electric_field2(args[0], [(1, args[1]), (args[2], args[3])])
     # calculate electric field at every time t
     for i in range(len(t)):
         e_field[i] = (stepper.E(stepper.x, t[i])[0])
@@ -122,6 +124,11 @@ def fitness(ind):
     return net(input)[n_to_max].item(),
 
 
+def new_fittness(ind):
+    mean, std = stability(ind, fitness)
+    return mean, std
+
+
 toolbox.register('evaluate', fitness)
 # mating function
 toolbox.register('mate', tools.cxTwoPoint)
@@ -130,15 +137,17 @@ toolbox.register('mate', tools.cxTwoPoint)
 # mutation function
 def mutate(ind, indpb=0.05):
     for i in range(len(ind)):
-        if i == 0 and random.random() < indpb:
-            shift = 0.1 * (2 * random.random() - 1)
-            ind[i] = max(0, min(50, ind[i] + shift))
-        elif i == 1 and random.random() < indpb:
-            shift = 0.1 * (2 * random.random() - 1)
-            ind[i] = max(0, min(5, ind[i] + shift))
-        else:
-            shift = 0.1 * (2 * random.random() - 1)
-            ind[i] = max(0, min(5, ind[i] + shift))
+        shift = 0.1 * (2 * random.random() - 1)
+        ind[i] = max(0, ind[i] + shift)
+        # if i == 0 and random.random() < indpb:
+        #     shift = 0.1 * (2 * random.random() - 1)
+        #     ind[i] = max(0, min(50, ind[i] + shift))
+        # elif i == 1 and random.random() < indpb:
+        #     shift = 0.1 * (2 * random.random() - 1)
+        #     ind[i] = max(0, min(5, ind[i] + shift))
+        # else:
+        #     shift = 0.1 * (2 * random.random() - 1)
+        #     ind[i] = max(0, min(5, ind[i] + shift))
     return ind,
 
 
@@ -150,23 +159,48 @@ hof = tools.HallOfFame(1)
 pop, log = algorithms.eaSimple(pop, toolbox, cxpb=0.5, mutpb=0.2, ngen=40, halloffame=hof, verbose=False)
 
 best = hof[0]
-print(best)
+# print(best)
 bins = [i for i in range(N + 1)]
 plt.subplot(211)
+plt.ylabel('Occupation')
 plt.hist(bins[:-1], bins, weights=net(get_input(best)).detach(), align='left')
 plt.title('Predicted Occupation by Neural Network')
 # plt.show()
 
-stepper.set_time(0)
-stepper.set_state(eigenstates[0], normalzie=False)
-stepper.set_electric_field(best[0], t_max / 2, best[1], [(1, best[2]), (best[3], best[4])])
-stepper.step_to(t_max, dt)
-projections = stepper.projection(eigenstates)
-occupations = np.real(np.conj(projections) * projections)[:N]
+
+def get_occupations(parameters):
+    stepper.set_time(0)
+    stepper.set_state(eigenstates[0], normalzie=False)
+    # stepper.set_electric_field(parameters[0], t_max / 2, parameters[1], [(1, parameters[2]), (parameters[3], parameters[4])])
+    stepper.set_electric_field2(parameters[0], [(1, parameters[1]), (parameters[2], parameters[3])])
+    stepper.step_to(t_max, dt)
+    projections = stepper.projection(eigenstates)
+    occupations = np.real(np.conj(projections) * projections)[:N]
+    return occupations
+
+def get_occupation(parameters):
+    return get_occupations(parameters)[n_to_max]
+
+
+occupations = get_occupations(best)
 plt.subplot(212)
+plt.ylabel('Occupation')
+plt.xlabel('States')
 plt.hist(bins[:-1], bins, weights=occupations, align='left')
 plt.title('Predicted Occupation by simulating with Crank-Nicolson')
 plt.gcf().tight_layout()
+import tikzplotlib
+tikzplotlib.save('harmonic_oscillator/genetic/optim.tex')
 plt.savefig('harmonic_oscillator/genetic/optim.pdf')
-print(occupations)
+lines = [str(best) + '\n', str(occupations) + '\n',
+         f'stability with Crank-Nicolson: {stability(best, get_occupation)}\n',
+         f'stability with Neural-Network: {stability(best, fitness)}']
+for line in lines:
+    print(line, end='')
+# print(occupations)
+# print(f'stability with Crank-Nicolson: {stability(best, get_occupation)}')
+# print(f'stability with Neural-Network: {stability(best, fitness)}')
 plt.show()
+
+with open('harmonic_oscillator/genetic/optim.txt', 'w+') as file:
+    file.writelines(lines)
