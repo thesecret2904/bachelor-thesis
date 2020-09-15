@@ -61,7 +61,7 @@ t = np.linspace(0, 6, 61)
 # Init neural network
 N = 5
 # occupation state to maximize
-n_to_max = 1
+n_to_max = 2
 number_layers = 3
 # number_layers = 5
 number_nodes = 20
@@ -85,7 +85,7 @@ def attributes():
     # main amplitude range = 0 to 10
     ind.append(10 * random.random())
     # time width range = 0 to 2
-    # ind.append(2 * random.random())
+    ind.append(2 * random.random())
     # frequency range = 0 to 5
     ind.append(5 * random.random())
     # sub amplitude range = 0 to 5
@@ -107,8 +107,8 @@ def get_input(args):
     # init electric field
     e_field = np.zeros_like(t)
     # set electric field according to current arguments
-    # stepper.set_electric_field(args[0], t[-1] / 2, args[1], [(1, args[2]), (args[3], args[4])])
-    stepper.set_electric_field2(args[0], [(1, args[1]), (args[2], args[3])])
+    stepper.set_electric_field(args[0], t[-1] / 2, args[1], [(1, args[2]), (args[3], args[4])])
+    # stepper.set_electric_field2(args[0], [(1, args[1]), (args[2], args[3])])
     # calculate electric field at every time t
     for i in range(len(t)):
         e_field[i] = (stepper.E(stepper.x, t[i])[0])
@@ -171,8 +171,8 @@ plt.title('Predicted Occupation by Neural Network')
 def get_occupations(parameters):
     stepper.set_time(0)
     stepper.set_state(eigenstates[0], normalzie=False)
-    # stepper.set_electric_field(parameters[0], t_max / 2, parameters[1], [(1, parameters[2]), (parameters[3], parameters[4])])
-    stepper.set_electric_field2(parameters[0], [(1, parameters[1]), (parameters[2], parameters[3])])
+    stepper.set_electric_field(parameters[0], t_max / 2, parameters[1], [(1, parameters[2]), (parameters[3], parameters[4])])
+    # stepper.set_electric_field2(parameters[0], [(1, parameters[1]), (parameters[2], parameters[3])])
     stepper.step_to(t_max, dt)
     projections = stepper.projection(eigenstates)
     occupations = np.real(np.conj(projections) * projections)[:N]

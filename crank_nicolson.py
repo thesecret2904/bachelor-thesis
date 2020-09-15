@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import tikzplotlib
+from fourier_transform import fourier_transform
 
 
 # Class for time propagation
@@ -321,7 +322,10 @@ if __name__ == '__main__':
     time_shift = t_max / 2
     time_width = 1
     # parameters = [4.858508484305595, 0.7622057432390686, 2.026144512459367, 1.008878584223196, 4.779891252129817]
+    # optimized for first excited state
     parameters = [2.21, 1.50, 1.60, 3.14, 2.15]
+    # optimized for second excited state
+    # parameters = [9.63998516330744, 1.3374328518923486, 2.448686269548714, 5.078782158896212, 4.796668853058543]
     frequencies = [(1, parameters[2]), (parameters[3], parameters[4])]
     stepper.set_electric_field(parameters[0], time_shift, parameters[1], frequencies)
     # T = np.linspace(t, t_max, 500)
@@ -352,7 +356,23 @@ if __name__ == '__main__':
 
     # anim = Animator(stepper, dt)
     # anim.animate()
-    stepper.step_to(t_max, dt)
+    times = [stepper.t]
+    mean_x = [stepper.mean_x()]
+    while stepper.t < t_max:
+        stepper.step(dt)
+        times.append(stepper.t)
+        mean_x.append(stepper.mean_x().real)
+
+    plt.plot(times, mean_x)
+    plt.show()
+    freqs, transform = fourier_transform(times, mean_x)
+    print(freqs)
+    plt.plot(freqs, np.abs(transform))
+    plt.plot([1, 1], [0, np.max(np.abs(transform))], 'k--')
+    plt.plot([-1, -1], [0, np.max(np.abs(transform))], 'k--')
+    plt.show()
+
+    # stepper.step_to(t_max, dt)
     projections = stepper.projection(eigenstates)
     projections = np.real(np.conj(projections) * projections)
     # print(projections[:3])

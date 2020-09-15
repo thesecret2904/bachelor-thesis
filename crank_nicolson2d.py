@@ -127,4 +127,5 @@ if __name__ == '__main__':
 
     frames = 600
     anim = animation.FuncAnimation(fig, animate, interval=100, frames=frames)
-    anim.save('cranknicolson2d.gif', writer='imagemagick', fps=10)
+    plt.show()
+    # anim.save('cranknicolson2d.gif', writer='imagemagick', fps=10)
